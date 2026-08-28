@@ -12,7 +12,7 @@ export default function Home() {
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold">FW</span>
               </div>
-              <span className="font-bold text-lg text-gray-900">FreelanceWriting.pro</span>
+              <span className="font-bold text-lg text-gray-900">Content-Forge.pro</span>
             </Link>
             <div className="flex items-center space-x-4">
               <Link to="/login" className="text-gray-600 hover:text-gray-900">Login</Link>
@@ -43,7 +43,7 @@ export default function Home() {
       {/* Features */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-center mb-12">Why Choose FreelanceWriting.pro?</h2>
+          <h2 className="text-4xl font-bold text-center mb-12">Why Choose Content-Forge.pro?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <FeatureCard
               icon={<Users size={32} />}
@@ -125,7 +125,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center">
-            <p>&copy; 2025 FreelanceWriting.pro. All rights reserved.</p>
+            <p>&copy; 2025 Content-Forge.pro. All rights reserved.</p>
           </div>
         </div>
       </footer>
