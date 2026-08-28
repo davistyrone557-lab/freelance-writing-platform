@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import pool from '../config/database.js';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
+import { runAutomationWorker } from '../services/automationWorker.js';
 
 dotenv.config();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -130,6 +131,17 @@ export function startAutomationSchedules() {
       console.log(`✅ Updated ratings for ${writersRes.rows.length} writers`);
     } catch (error) {
       console.error('Error in rating update task:', error);
+    }
+  });
+
+  // Automated worker: market opportunities, perform matching support, and request feedback
+  cron.schedule('0 */2 * * *', async () => {
+    console.log('⏰ Running: Automated worker');
+    try {
+      const result = await runAutomationWorker();
+      console.log('✅ Automated worker completed:', result.summary);
+    } catch (error) {
+      console.error('Error in automated worker task:', error);
     }
   });
 

@@ -4,6 +4,7 @@ import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
 import { generalRateLimit } from '../middleware/rateLimit.js';
 import dotenv from 'dotenv';
+import { runAutomationWorker } from '../services/automationWorker.js';
 
 dotenv.config();
 
@@ -11,6 +12,19 @@ const router = express.Router();
 router.use(generalRateLimit);
 router.use(verifyToken);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Admin-only: run automated worker immediately
+router.post('/worker/run', roleCheck('admin'), async (req, res) => {
+  try {
+    const result = await runAutomationWorker();
+    res.json({
+      message: '✅ Automated worker completed',
+      ...result
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // AI-based auto-matching: Match writers to projects automatically
 router.post('/auto-match', verifyToken, async (req, res) => {
