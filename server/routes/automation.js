@@ -47,13 +47,13 @@ router.post('/auto-match', verifyToken, async (req, res) => {
     // Auto-send proposals to top writers
     for (const writer of topWriters) {
       await pool.query(
-        'INSERT INTO bids (project_id, writer_id, amount, proposal, timeline, status) VALUES ($1, $2, $3, $4, $5, $6)',
+        'INSERT INTO bids (project_id, writer_id, amount, proposal, delivery_days, status) VALUES ($1, $2, $3, $4, $5, $6)',
         [
           projectId,
           writer.id,
           project.budget * 0.85, // Competitive price: 85% of budget
           `Auto-matched project based on your expertise and ratings. Budget: $${project.budget}. Your price: $${(project.budget * 0.85).toFixed(2)}`,
-          '5-7 days',
+          7,
           'pending'
         ]
       );
