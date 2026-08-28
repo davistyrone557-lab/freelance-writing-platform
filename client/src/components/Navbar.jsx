@@ -27,7 +27,7 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-6">
-            <Link to="/projects" className="text-gray-600 hover:text-gray-900">Browse Projects</Link>
+            <Link to="/projects" className="text-gray-600 hover:text-gray-900">Find Services</Link>
 
             {isAuthenticated ? (
               <>
@@ -66,7 +66,7 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {isOpen && (
           <div className="md:hidden pb-4 space-y-1 border-t pt-2">
-            <Link to="/projects" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Browse Projects</Link>
+            <Link to="/projects" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Find Services</Link>
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Dashboard</Link>
