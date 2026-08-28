@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle, Users, DollarSign, Shield, FileText, PenSquare, BriefcaseBusiness } from 'lucide-react'
+import { ArrowRight, CheckCircle, Users, DollarSign, Shield, FileText, PenSquare, Briefcase } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -34,7 +34,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <ServiceCard icon={<FileText size={32} />} title="Resumes & Profiles" description="Get clean, modern resumes, LinkedIn summaries, and personal bios that stand out." />
             <ServiceCard icon={<PenSquare size={32} />} title="Personal Writing" description="Receive help with cover letters, statements, and polished communication pieces." />
-            <ServiceCard icon={<BriefcaseBusiness size={32} />} title="Business Content" description="Order website copy, blog posts, and service descriptions tailored to your audience." />
+            <ServiceCard icon={<Briefcase size={32} />} title="Business Content" description="Order website copy, blog posts, and service descriptions tailored to your audience." />
           </div>
         </div>
       </section>
