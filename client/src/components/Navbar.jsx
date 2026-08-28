@@ -1,10 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Menu, X, LogOut, Settings, MessageSquare, Home } from 'lucide-react'
+import { Menu, X, LogOut, Settings, MessageSquare, LayoutDashboard, Hammer } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Navbar() {
-  const { user, logout } = useAuthStore()
+  const { user, isAuthenticated, logout } = useAuthStore()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
 
@@ -20,33 +20,41 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">FW</span>
+              <Hammer size={16} className="text-white" />
             </div>
-            <span className="font-bold text-lg text-gray-900">FreelanceWriting.pro</span>
+            <span className="font-bold text-lg text-gray-900">Content-Forge.pro</span>
           </Link>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-6">
-            <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 flex items-center gap-2">
-              <Home size={20} /> Dashboard
-            </Link>
-            <Link to="/projects" className="text-gray-600 hover:text-gray-900">Projects</Link>
-            <Link to="/messages" className="text-gray-600 hover:text-gray-900 flex items-center gap-2">
-              <MessageSquare size={20} /> Messages
-            </Link>
-            
-            <div className="flex items-center space-x-4 border-l pl-6">
-              <span className="text-sm text-gray-600">{user?.first_name || 'User'}</span>
-              <Link to="/settings" className="text-gray-600 hover:text-gray-900">
-                <Settings size={20} />
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="text-red-600 hover:text-red-700 flex items-center gap-2"
-              >
-                <LogOut size={20} /> Logout
-              </button>
-            </div>
+            <Link to="/projects" className="text-gray-600 hover:text-gray-900">Browse Projects</Link>
+
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                  <LayoutDashboard size={18} /> Dashboard
+                </Link>
+                <Link to="/messages" className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                  <MessageSquare size={18} /> Messages
+                </Link>
+                <div className="flex items-center space-x-4 border-l pl-6">
+                  <span className="text-sm font-medium text-gray-700">{user?.first_name}</span>
+                  <Link to="/settings" className="text-gray-600 hover:text-gray-900">
+                    <Settings size={20} />
+                  </Link>
+                  <button onClick={handleLogout} className="text-red-600 hover:text-red-700 flex items-center gap-1">
+                    <LogOut size={18} /> Logout
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center space-x-4">
+                <Link to="/login" className="text-gray-600 hover:text-gray-900">Login</Link>
+                <Link to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                  Sign Up Free
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -57,25 +65,21 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {isOpen && (
-          <div className="md:hidden pb-4 space-y-2">
-            <Link to="/dashboard" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">
-              Dashboard
-            </Link>
-            <Link to="/projects" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">
-              Projects
-            </Link>
-            <Link to="/messages" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">
-              Messages
-            </Link>
-            <Link to="/settings" className="block px-4 py-2 text-gray-600 hover:bg-gray-50">
-              Settings
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-50"
-            >
-              Logout
-            </button>
+          <div className="md:hidden pb-4 space-y-1 border-t pt-2">
+            <Link to="/projects" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Browse Projects</Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Dashboard</Link>
+                <Link to="/messages" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Messages</Link>
+                <Link to="/settings" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Settings</Link>
+                <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-50 rounded">Logout</button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded">Login</Link>
+                <Link to="/register" className="block px-4 py-2 text-blue-600 font-medium hover:bg-gray-50 rounded">Sign Up</Link>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import Stripe from 'stripe';
 import pool from '../config/database.js';
@@ -7,6 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+router.use(generalRateLimit);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Create payment intent (for clients paying writers)
