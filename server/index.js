@@ -16,7 +16,7 @@ import messageRoutes from './routes/messages.js';
 import reviewRoutes from './routes/reviews.js';
 import userRoutes from './routes/users.js';
 import adminRoutes from './routes/admin.js';
-import { verifyToken, rateLimitAuth } from './middleware/auth.js';
+import { rateLimitAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -106,7 +106,7 @@ const authRateLimit = rateLimitAuth(10, 60000);
 app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api/projects', generalRateLimit, projectRoutes);
 app.use('/api/payments', generalRateLimit, paymentRoutes);
-app.use('/api/automation', generalRateLimit, verifyToken, automationRoutes);
+app.use('/api/automation', generalRateLimit, automationRoutes);
 app.use('/api/bids', generalRateLimit, bidRoutes);
 app.use('/api/messages', generalRateLimit, messageRoutes);
 app.use('/api/reviews', generalRateLimit, reviewRoutes);
