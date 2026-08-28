@@ -101,38 +101,4 @@ router.post('/login', [
   }
 });
 
-// Refresh token endpoint
-router.post('/refresh', (req, res) => {
-  try {
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ error: 'Token required' });
-    }
-
-    // Verify token (even if expired)
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        decoded = jwt.decode(token);
-      } else {
-        return res.status(403).json({ error: 'Invalid token' });
-      }
-    }
-
-    // Generate new token
-    const newToken = jwt.sign(
-      { id: decoded.id, email: decoded.email, role: decoded.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || '7d' }
-    );
-
-    res.json({ token: newToken });
-  } catch (error) {
-    res.status(500).json({ error: 'Token refresh failed' });
-  }
-});
-
 export default router;
