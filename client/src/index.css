@@ -1,7 +1,17 @@
-import './index.css'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-const root = document.documentElement
-root.style.setProperty('--color-primary', '#3b82f6')
-root.style.setProperty('--color-success', '#10b981')
-root.style.setProperty('--color-danger', '#ef4444')
-root.style.setProperty('--color-warning', '#f59e0b')
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
