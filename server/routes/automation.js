@@ -2,11 +2,13 @@ import express from 'express';
 import Stripe from 'stripe';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const router = express.Router();
+router.use(generalRateLimit);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // AI-based auto-matching: Match writers to projects automatically

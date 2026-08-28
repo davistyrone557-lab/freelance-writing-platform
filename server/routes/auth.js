@@ -1,3 +1,4 @@
+import { strictRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -8,6 +9,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+router.use(strictRateLimit);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Register endpoint
@@ -101,8 +103,6 @@ router.post('/login', [
   }
 });
 
-export default router;
-// Forgot password — sends reset email
 router.post('/forgot-password', [
   body('email').isEmail().normalizeEmail()
 ], async (req, res) => {
@@ -208,3 +208,5 @@ router.post('/verify-email', [
     res.status(500).json({ error: 'Failed to verify email' });
   }
 });
+
+export default router;

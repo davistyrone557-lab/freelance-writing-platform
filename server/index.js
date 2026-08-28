@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -15,7 +16,7 @@ import messageRoutes from './routes/messages.js';
 import reviewRoutes from './routes/reviews.js';
 import userRoutes from './routes/users.js';
 import adminRoutes from './routes/admin.js';
-import { verifyToken } from './middleware/auth.js';
+import { verifyToken, rateLimitAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -32,13 +33,25 @@ const io = new Server(httpServer, {
 
 const onlineUsers = new Map();
 
-io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id);
+// Authenticate socket connections via JWT
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
 
-  socket.on('user_online', (userId) => {
-    onlineUsers.set(userId, socket.id);
-    io.emit('user_status', { userId, status: 'online' });
-  });
+io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id, 'userId:', socket.userId);
+
+  // Register online status using authenticated userId from token
+  onlineUsers.set(socket.userId, socket.id);
+  io.emit('user_status', { userId: socket.userId, status: 'online' });
 
   socket.on('join_conversation', (conversationId) => {
     socket.join(`conversation_${conversationId}`);
@@ -62,13 +75,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    for (const [userId, socketId] of onlineUsers.entries()) {
-      if (socketId === socket.id) {
-        onlineUsers.delete(userId);
-        io.emit('user_status', { userId, status: 'offline' });
-        break;
-      }
-    }
+    onlineUsers.delete(socket.userId);
+    io.emit('user_status', { userId: socket.userId, status: 'offline' });
   });
 });
 
@@ -89,22 +97,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Content-Forge.pro API is running', timestamp: new Date().toISOString() });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/automation', verifyToken, automationRoutes);
-app.use('/api/bids', bidRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
+// General rate limit: 200 requests per minute per IP
+const generalRateLimit = rateLimitAuth(200, 60000);
+// Strict rate limit for auth endpoints: 10 per minute
+const authRateLimit = rateLimitAuth(10, 60000);
 
-// Mount bid sub-routes on projects (e.g. POST /api/projects/:projectId/bids)
-app.post('/api/projects/:projectId/bids', (req, res, next) => {
-  req.url = `/projects/${req.params.projectId}/bids`;
-  next();
-}, bidRoutes);
+// Routes
+app.use('/api/auth', authRateLimit, authRoutes);
+app.use('/api/projects', generalRateLimit, projectRoutes);
+app.use('/api/payments', generalRateLimit, paymentRoutes);
+app.use('/api/automation', generalRateLimit, verifyToken, automationRoutes);
+app.use('/api/bids', generalRateLimit, bidRoutes);
+app.use('/api/messages', generalRateLimit, messageRoutes);
+app.use('/api/reviews', generalRateLimit, reviewRoutes);
+app.use('/api/users', generalRateLimit, userRoutes);
+app.use('/api/admin', generalRateLimit, adminRoutes);
 
 // 404 handler
 app.use((req, res) => {

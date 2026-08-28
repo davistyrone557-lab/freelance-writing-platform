@@ -1,3 +1,4 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { Pool } from 'pg';
@@ -7,6 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
+router.use(generalRateLimit);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Get all projects

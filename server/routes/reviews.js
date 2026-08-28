@@ -1,9 +1,11 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(generalRateLimit);
 
 // POST /reviews — submit review after project completion
 router.post('/', verifyToken, [
@@ -20,10 +22,11 @@ router.post('/', verifyToken, [
 
     // Verify project is completed and user is part of it
     const projectResult = await pool.query(
-      'SELECT * FROM projects WHERE id = $1 AND status = $2',
-      [projectId, 'completed']
+      `SELECT * FROM projects WHERE id = $1 AND status = $2
+       AND (client_id = $3 OR assigned_writer_id = $3)`,
+      [projectId, 'completed', req.user.id]
     );
-    if (projectResult.rows.length === 0) return res.status(400).json({ error: 'Project not found or not completed' });
+    if (projectResult.rows.length === 0) return res.status(400).json({ error: 'Project not found, not completed, or you were not a participant' });
 
     // Check no duplicate review
     const existing = await pool.query(

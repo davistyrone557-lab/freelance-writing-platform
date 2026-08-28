@@ -1,8 +1,10 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(generalRateLimit);
 
 // All admin routes require authentication and admin role
 router.use(verifyToken, roleCheck('admin'));
@@ -91,7 +93,7 @@ router.get('/analytics', async (req, res) => {
 // POST /admin/disputes/:id/resolve
 router.post('/disputes/:id/resolve', async (req, res) => {
   try {
-    const { resolution, winnerId } = req.body;
+    const { resolution } = req.body;
     await pool.query(
       'UPDATE disputes SET status = $1, resolution = $2, resolved_at = NOW() WHERE id = $3',
       ['resolved', resolution, req.params.id]

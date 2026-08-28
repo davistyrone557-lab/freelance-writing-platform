@@ -1,9 +1,11 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(generalRateLimit);
 
 // GET /messages/conversations
 router.get('/conversations', verifyToken, async (req, res) => {

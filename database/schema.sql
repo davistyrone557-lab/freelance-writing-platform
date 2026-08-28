@@ -163,11 +163,6 @@ CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 
--- Default admin user (change password before deploying!)
-INSERT INTO users (email, password, first_name, last_name, role, is_verified)
-VALUES ('admin@content-forge.pro', '$2b$12$placeholder_change_before_deploy', 'Admin', 'User', 'admin', true)
-ON CONFLICT (email) DO NOTHING;
-
 -- Seed skills
 INSERT INTO skills (name, category) VALUES
   ('Blog Writing', 'Content'),

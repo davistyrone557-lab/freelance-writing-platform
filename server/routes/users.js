@@ -1,9 +1,11 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(generalRateLimit);
 
 // GET /users/me — authenticated user profile
 router.get('/me', verifyToken, async (req, res) => {
@@ -56,7 +58,8 @@ router.get('/search', async (req, res) => {
     const params = [];
 
     if (q) {
-      query += ` AND (first_name ILIKE $${params.length + 1} OR last_name ILIKE $${params.length + 1} OR bio ILIKE $${params.length + 1})`;
+      const idx = params.length + 1;
+      query += ` AND (first_name ILIKE $${idx} OR last_name ILIKE $${idx} OR bio ILIKE $${idx})`;
       params.push(`%${q}%`);
     }
     if (minRating) {

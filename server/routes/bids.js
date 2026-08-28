@@ -1,9 +1,11 @@
+import { generalRateLimit } from '../middleware/rateLimit.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
 
 const router = express.Router();
+router.use(generalRateLimit);
 
 // GET /bids/my-bids — writer sees their own bids
 router.get('/my-bids', verifyToken, roleCheck('writer'), async (req, res) => {
@@ -74,17 +76,30 @@ router.post('/projects/:projectId/bids', verifyToken, roleCheck('writer'), [
   }
 });
 
-// GET /projects/:projectId/bids — client sees bids on their project
+// GET /projects/:projectId/bids — client sees bids on their project (or writer sees their own bid)
 router.get('/projects/:projectId/bids', verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT b.*, u.first_name, u.last_name, u.rating, u.total_projects_completed
-       FROM bids b
-       JOIN users u ON b.writer_id = u.id
-       WHERE b.project_id = $1
-       ORDER BY b.created_at DESC`,
-      [req.params.projectId]
-    );
+    // Writers only see their own bid; clients only see bids on their own projects
+    const projectResult = await pool.query('SELECT client_id FROM projects WHERE id = $1', [req.params.projectId]);
+    if (projectResult.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+
+    const isClient = req.user.role === 'client' && projectResult.rows[0].client_id === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+
+    let query, params;
+    if (isClient || isAdmin) {
+      query = `SELECT b.*, u.first_name, u.last_name, u.rating, u.total_projects_completed
+               FROM bids b JOIN users u ON b.writer_id = u.id
+               WHERE b.project_id = $1 ORDER BY b.created_at DESC`;
+      params = [req.params.projectId];
+    } else {
+      // Writer: only their own bid
+      query = `SELECT b.*, u.first_name, u.last_name FROM bids b JOIN users u ON b.writer_id = u.id
+               WHERE b.project_id = $1 AND b.writer_id = $2`;
+      params = [req.params.projectId, req.user.id];
+    }
+
+    const result = await pool.query(query, params);
     res.json({ bids: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
