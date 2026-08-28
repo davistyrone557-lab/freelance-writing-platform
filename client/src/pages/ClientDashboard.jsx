@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAuthStore } from '../store/authStore'
 import { projectsAPI } from '../services/api'
 
 export default function ClientDashboard() {
-  const { user } = useAuthStore()
   const [projects, setProjects] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({
@@ -14,21 +12,21 @@ export default function ClientDashboard() {
     deadline: ''
   })
 
+  async function fetchProjects() {
+    try {
+      const res = await projectsAPI.getAll()
+      setProjects(res.data.projects)
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
+
   useEffect(() => {
     fetchProjects()
   }, [])
 
-  const fetchProjects = async () => {
-    try {
-      const res = await projectsAPI.getAll()
-      setProjects(res.data.projects)
-    } catch (err) {
-      console.error('Error:', err)
-    }
-  }
-
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setFormData((current) => ({ ...current, [e.target.name]: e.target.value }))
   }
 
   const handleSubmit = async (e) => {
@@ -44,7 +42,8 @@ export default function ClientDashboard() {
       })
       setShowForm(false)
       fetchProjects()
-    } catch (err) {
+    } catch (error) {
+      console.error('Error creating project:', error)
       alert('Error creating project')
     }
   }
@@ -61,7 +60,6 @@ export default function ClientDashboard() {
         </button>
       </div>
 
-      {/* Create Project Form */}
       {showForm && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-bold mb-4">Create New Project</h2>
@@ -132,9 +130,8 @@ export default function ClientDashboard() {
         </div>
       )}
 
-      {/* Projects List */}
       <div className="grid gap-6">
-        {projects.map(project => (
+        {projects.map((project) => (
           <div key={project.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition">
             <div className="flex justify-between items-start mb-4">
               <div>
