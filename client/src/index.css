@@ -1,0 +1,7 @@
+import './index.css'
+
+const root = document.documentElement
+root.style.setProperty('--color-primary', '#3b82f6')
+root.style.setProperty('--color-success', '#10b981')
+root.style.setProperty('--color-danger', '#ef4444')
+root.style.setProperty('--color-warning', '#f59e0b')
