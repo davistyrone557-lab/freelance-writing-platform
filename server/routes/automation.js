@@ -9,7 +9,6 @@ dotenv.config();
 
 const router = express.Router();
 router.use(generalRateLimit);
-router.use(verifyToken);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // AI-based auto-matching: Match writers to projects automatically
