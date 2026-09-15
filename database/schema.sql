@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
   reset_token_expires TIMESTAMP,
   is_banned BOOLEAN DEFAULT FALSE,
   ban_reason TEXT,
+  referral_code VARCHAR(20) UNIQUE,
+  referred_by INTEGER REFERENCES users(id),
+  referral_bonus_awarded BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -162,6 +165,8 @@ CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_reviewee_id ON reviews(reviewee_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by);
 
 -- Seed skills
 INSERT INTO skills (name, category) VALUES

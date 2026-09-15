@@ -62,6 +62,21 @@ export default function WriterProfile() {
           </div>
         </div>
 
+        {writer.badges && writer.badges.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {writer.badges.map((badge) => (
+              <span
+                key={badge.key}
+                title={badge.description}
+                className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-medium"
+              >
+                <Award size={14} />
+                {badge.label}
+              </span>
+            ))}
+          </div>
+        )}
+
         {writer.bio && (
           <div className="mt-6">
             <h2 className="text-lg font-semibold mb-2">About</h2>

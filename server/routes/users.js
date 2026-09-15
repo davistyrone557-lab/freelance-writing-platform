@@ -3,6 +3,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
+import { computeBadges } from '../utils/badges.js';
 
 const router = express.Router();
 router.use(generalRateLimit);
@@ -11,11 +12,15 @@ router.use(generalRateLimit);
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, first_name, last_name, role, bio, skills, rating, total_earned, total_spent, total_projects_completed, total_reviews, avatar_url, is_verified, created_at FROM users WHERE id = $1',
+      `SELECT id, email, first_name, last_name, role, bio, skills, rating, total_earned, total_spent,
+        total_projects_completed, total_reviews, avatar_url, is_verified, created_at, referral_code,
+        (SELECT COUNT(*)::int FROM users r WHERE r.referred_by = users.id) AS referral_count
+       FROM users WHERE id = $1`,
       [req.user.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+    res.json({ ...user, badges: computeBadges(user) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -81,7 +86,7 @@ router.get('/search', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.first_name, u.last_name, u.role, u.bio, u.skills, u.rating, u.total_projects_completed, u.total_reviews, u.avatar_url, u.created_at,
+      `SELECT u.id, u.first_name, u.last_name, u.role, u.bio, u.skills, u.rating, u.total_projects_completed, u.total_reviews, u.avatar_url, u.created_at, u.is_verified,
         (SELECT json_agg(r ORDER BY r.created_at DESC) FROM (
           SELECT rv.rating, rv.feedback, rv.created_at, ru.first_name AS reviewer_first, ru.last_name AS reviewer_last
           FROM reviews rv JOIN users ru ON rv.reviewer_id = ru.id
@@ -91,7 +96,8 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+    res.json({ ...user, badges: computeBadges(user) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

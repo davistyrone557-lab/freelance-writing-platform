@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle, Users, DollarSign, Zap, Star, Shield } from 'lucide-react'
+import { ArrowRight, CheckCircle, Users, DollarSign, Zap, Star, Shield, Gift, Award } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -7,9 +7,9 @@ export default function Home() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-5xl font-bold mb-6">Quality Content, Forged by Experts</h1>
+          <h1 className="text-5xl font-bold mb-6">Quality Content, Forged by Experts You Can Trust</h1>
           <p className="text-xl mb-10 text-blue-100 max-w-2xl mx-auto">
-            Content-Forge.pro connects professional writers with businesses that need exceptional content. Post a project, receive bids, and get paid securely.
+            Content-Forge.pro connects vetted writers with businesses that need real results. Post a project, compare proposals from rated professionals, and pay safely through escrow — you only release funds when you approve the work.
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
             <Link to="/register?role=writer" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 flex items-center gap-2">
@@ -26,14 +26,15 @@ export default function Home() {
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-center mb-4">Why Choose Content-Forge.pro?</h2>
-          <p className="text-center text-gray-500 mb-12">Everything you need to build successful content partnerships.</p>
+          <p className="text-center text-gray-500 mb-12">Everything you need to build successful content partnerships — without the guesswork or the risk.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard icon={<Users size={32} />} title="Vetted Writers" description="Every writer is reviewed and rated. Find specialists for any niche." />
-            <FeatureCard icon={<DollarSign size={32} />} title="Secure Escrow Payments" description="Funds are held safely until work is delivered. Powered by Stripe." />
-            <FeatureCard icon={<Zap size={32} />} title="Fast Turnaround" description="Get proposals within hours. Set deadlines that work for you." />
-            <FeatureCard icon={<CheckCircle size={32} />} title="Quality Guaranteed" description="5-star rating system and detailed reviews ensure you hire the best." />
-            <FeatureCard icon={<Shield size={32} />} title="Dispute Protection" description="Our team mediates any disputes to ensure fair outcomes." />
-            <FeatureCard icon={<Star size={32} />} title="Top Writer Badges" description="Recognize excellence with Top-Rated and Super Writer badges." />
+            <FeatureCard icon={<Users size={32} />} title="Vetted Writers, Not Guesswork" description="Every writer is reviewed and rated after each project. Filter by skill and find the specialist your project actually needs." />
+            <FeatureCard icon={<DollarSign size={32} />} title="Secure Escrow Payments" description="Funds sit safely in escrow until you approve the final draft. Writers get paid the moment work is delivered — clients never pay for nothing." />
+            <FeatureCard icon={<Zap size={32} />} title="Fast Turnaround" description="Post a project and start receiving proposals within hours, not weeks. Set the deadline that actually works for you." />
+            <FeatureCard icon={<CheckCircle size={32} />} title="Ratings You Can Trust" description="Every completed project ends in a real, verified review, so you know exactly how a writer performs before you hire." />
+            <FeatureCard icon={<Shield size={32} />} title="Dispute Protection" description="If something goes wrong, our team steps in to mediate so neither side is left stuck." />
+            <FeatureCard icon={<Award size={32} />} title="Achievement Badges" description="Verified, Rising Star, Experienced, Super Writer and Top Rated badges are earned automatically from real project history — never for sale, never faked." />
+            <FeatureCard icon={<Gift size={32} />} title="Referral Rewards" description="Invite other writers and clients. When someone you referred lands their first hire, you earn a real $25 credit — no cap, no catch." />
           </div>
         </div>
       </section>
@@ -43,9 +44,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <StepCard step="1" title="Post a Project" description="Describe what you need, set your budget, and publish your project." />
-            <StepCard step="2" title="Receive Bids" description="Qualified writers submit proposals. Review and choose the best fit." />
-            <StepCard step="3" title="Get Content & Pay" description="Approve the work and release payment safely through escrow." />
+            <StepCard step="1" title="Post a Project" description="Describe what you need, set your budget, and publish your project in minutes — it's free to post." />
+            <StepCard step="2" title="Receive Bids" description="Qualified writers send proposals with pricing and turnaround time. Compare ratings and reviews to pick the right fit." />
+            <StepCard step="3" title="Get Content & Pay" description="Approve the final draft and release payment instantly through escrow. Nobody gets paid until you're satisfied." />
           </div>
         </div>
       </section>
@@ -65,8 +66,8 @@ export default function Home() {
       {/* CTA */}
       <section className="bg-blue-600 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold mb-6">Ready to Start Creating?</h2>
-          <p className="text-xl mb-8">Join thousands of writers and clients building successful content partnerships.</p>
+          <h2 className="text-4xl font-bold mb-6">Your Next Great Writer (or Client) Is Already Here</h2>
+          <p className="text-xl mb-8">Join a marketplace built on transparent ratings and secure payments — then invite others and earn real rewards for it.</p>
           <Link to="/register" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 inline-block">
             Create Your Free Account
           </Link>

@@ -7,6 +7,36 @@ import { verifyToken, roleCheck } from '../middleware/auth.js';
 const router = express.Router();
 router.use(generalRateLimit);
 
+// One-time bonus paid to a referrer, funded only when the person they
+// referred completes a real, verifiable hire (their first accepted bid as a
+// writer, or the first accepted bid on one of their projects as a client).
+// This avoids paying out for signups alone, which would be gameable via
+// throwaway accounts.
+const REFERRAL_BONUS_AMOUNT = 25;
+
+async function awardReferralBonusOnFirstHire(userId) {
+  try {
+    const userResult = await pool.query(
+      'SELECT id, referred_by, referral_bonus_awarded FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user || !user.referred_by || user.referral_bonus_awarded) return;
+
+    await pool.query('UPDATE users SET referral_bonus_awarded = true WHERE id = $1', [user.id]);
+    await pool.query(
+      'UPDATE users SET total_earned = total_earned + $1 WHERE id = $2',
+      [REFERRAL_BONUS_AMOUNT, user.referred_by]
+    );
+    await pool.query(
+      'INSERT INTO payments (user_id, amount, type, status, description) VALUES ($1, $2, $3, $4, $5)',
+      [user.referred_by, REFERRAL_BONUS_AMOUNT, 'deposit', 'completed', 'Referral bonus: your referral completed their first hire']
+    );
+  } catch (error) {
+    console.error('Referral bonus error:', error.message);
+  }
+}
+
 // GET /bids/my-bids — writer sees their own bids
 router.get('/my-bids', verifyToken, roleCheck('writer'), async (req, res) => {
   try {
@@ -165,6 +195,11 @@ router.post('/projects/:projectId/bids/:bidId/accept', verifyToken, roleCheck('c
     await pool.query('UPDATE bids SET status = $1 WHERE project_id = $2 AND id != $3', ['rejected', projectId, bidId]);
     await pool.query('UPDATE bids SET status = $1 WHERE id = $2', ['accepted', bidId]);
     await pool.query('UPDATE projects SET status = $1, assigned_writer_id = $2 WHERE id = $3', ['in_progress', bidResult.rows[0].writer_id, projectId]);
+
+    // A hire just happened for both sides of this bid — reward whichever of
+    // them was themselves referred onto the platform, the first time it happens.
+    await awardReferralBonusOnFirstHire(bidResult.rows[0].writer_id);
+    await awardReferralBonusOnFirstHire(req.user.id);
 
     res.json({ message: '✅ Bid accepted. Project is now in progress.' });
   } catch (error) {

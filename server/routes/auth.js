@@ -18,7 +18,8 @@ router.post('/register', [
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('firstName').trim().notEmpty(),
   body('lastName').trim().notEmpty(),
-  body('role').isIn(['writer', 'client']).withMessage('Role must be writer or client')
+  body('role').isIn(['writer', 'client']).withMessage('Role must be writer or client'),
+  body('referralCode').optional().trim()
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -26,7 +27,7 @@ router.post('/register', [
   }
 
   try {
-    const { email, password, firstName, lastName, role } = req.body;
+    const { email, password, firstName, lastName, role, referralCode } = req.body;
     
     // Check if user exists
     const userCheck = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -34,16 +35,35 @@ router.post('/register', [
       return res.status(409).json({ error: 'Email already registered' });
     }
 
+    // Resolve an optional referral code to the referring user's id. An
+    // unknown/invalid code is ignored rather than blocking registration.
+    let referredBy = null;
+    if (referralCode) {
+      const referrer = await pool.query(
+        'SELECT id FROM users WHERE referral_code = $1',
+        [referralCode.toUpperCase()]
+      );
+      if (referrer.rows.length > 0) {
+        referredBy = referrer.rows[0].id;
+      }
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
     const result = await pool.query(
-      'INSERT INTO users (email, password, first_name, last_name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, first_name, last_name, role',
-      [email, hashedPassword, firstName, lastName, role]
+      'INSERT INTO users (email, password, first_name, last_name, role, referred_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, first_name, last_name, role',
+      [email, hashedPassword, firstName, lastName, role, referredBy]
     );
 
     const user = result.rows[0];
+
+    // Generate this user's own shareable referral code from their id, so it
+    // is guaranteed unique without needing a retry loop.
+    user.referral_code = `REF${user.id.toString(36).toUpperCase()}`;
+    await pool.query('UPDATE users SET referral_code = $1 WHERE id = $2', [user.referral_code, user.id]);
+
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,

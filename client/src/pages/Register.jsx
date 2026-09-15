@@ -15,7 +15,8 @@ export default function Register() {
     password: '',
     firstName: '',
     lastName: '',
-    role: searchParams.get('role') || 'writer'
+    role: searchParams.get('role') || 'writer',
+    referralCode: searchParams.get('ref') || ''
   })
 
   const handleChange = (e) => {
@@ -96,6 +97,14 @@ export default function Register() {
             <option value="writer">Register as Writer</option>
             <option value="client">Register as Client</option>
           </select>
+          <input
+            type="text"
+            name="referralCode"
+            placeholder="Referral code (optional)"
+            value={formData.referralCode}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          />
 
           <button
             type="submit"
