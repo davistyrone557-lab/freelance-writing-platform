@@ -104,6 +104,7 @@ export default function ClientDashboard() {
                 <option value="technical">Technical Writing</option>
                 <option value="copywriting">Copywriting</option>
                 <option value="content">Content Marketing</option>
+                <option value="api-development">API Development</option>
               </select>
             </div>
             <input

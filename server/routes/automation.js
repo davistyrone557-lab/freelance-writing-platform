@@ -285,6 +285,24 @@ router.post('/generate-project-template', verifyToken, roleCheck('client'), asyn
       - Promotion tips
       
       Timeline: ${keywords?.deadline || '10-14 days'}
+      Budget: $${budget}`,
+
+      'api-development': `Remote API development project: ${keywords?.topic || 'REST/GraphQL API'}
+      
+      Requirements:
+      - 100% remote, async-friendly collaboration
+      - Tech stack: ${keywords?.stack || 'Node.js/Express (or specify preferred stack)'}
+      - Well-documented endpoints (OpenAPI/Swagger or equivalent)
+      - Authentication, input validation, and error handling
+      - Automated tests for critical paths
+      
+      Deliverables:
+      - Working API deployed or containerized for handoff
+      - API documentation
+      - Source code in a shared Git repository
+      - Basic test coverage report
+      
+      Timeline: ${keywords?.deadline || '7-14 days'}
       Budget: $${budget}`
     };
 

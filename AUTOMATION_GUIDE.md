@@ -49,6 +49,7 @@ Prices adjust **automatically** based on:
 - Copywriting: $150-500
 - Technical writing: $200-800
 - Content marketing: $250-1000
+- API development: $300-1500
 
 ✅ **Writer Rating**
 - 5⭐ writers: +30% premium pricing
