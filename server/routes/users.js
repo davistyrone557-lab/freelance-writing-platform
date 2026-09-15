@@ -11,7 +11,7 @@ router.use(generalRateLimit);
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, first_name, last_name, role, bio, skills, rating, total_earned, total_spent, total_projects_completed, total_reviews, avatar_url, is_verified, created_at FROM users WHERE id = $1',
+      'SELECT id, email, first_name, last_name, role, bio, skills, rating, total_earned, total_spent, total_projects_completed, total_reviews, avatar_url, stripe_account_id, is_verified, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });

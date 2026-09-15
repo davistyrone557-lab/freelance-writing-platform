@@ -54,13 +54,15 @@ router.post('/confirm', verifyToken, async (req, res) => {
     }
 
     // Calculate platform fee (10%)
-    const platformFee = amount * 0.10;
+    const platformFeePercentage = parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || 10) / 100;
+    const platformFee = amount * platformFeePercentage;
     const writerAmount = amount - platformFee;
 
     // Record payment in database
     await pool.query(
-      'INSERT INTO payments (user_id, amount, type, status, stripe_transaction_id, description) VALUES ($1, $2, $3, $4, $5, $6)',
-      [req.user.id, amount, 'payment', 'completed', paymentIntentId, `Payment for project ${projectId}`]
+      `INSERT INTO payments (user_id, project_id, amount, type, status, stripe_transaction_id, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [req.user.id, projectId || null, amount, 'payment', 'completed', paymentIntentId, `Payment for project ${projectId}`]
     );
 
     // Add funds to writer's wallet

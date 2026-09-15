@@ -1,5 +1,6 @@
 import express from 'express';
 import Stripe from 'stripe';
+import { body, validationResult } from 'express-validator';
 import pool from '../config/database.js';
 import { verifyToken, roleCheck } from '../middleware/auth.js';
 import { generalRateLimit } from '../middleware/rateLimit.js';
@@ -12,57 +13,302 @@ router.use(generalRateLimit);
 router.use(verifyToken);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+const platformFeePercentage = parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || 10) / 100;
+
+async function createNotification(userId, type, title, body, data = null) {
+  if (!userId) return;
+
+  await pool.query(
+    `INSERT INTO notifications (user_id, type, title, body, data)
+     VALUES ($1, $2, $3, $4, $5::jsonb)`,
+    [userId, type, title, body, data ? JSON.stringify(data) : null]
+  );
+}
+
+async function findEscrowPayment(projectId, clientId) {
+  const result = await pool.query(
+    `SELECT *
+     FROM payments
+     WHERE project_id = $1
+       AND user_id = $2
+       AND status = 'completed'
+       AND type IN ('payment', 'deposit')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [projectId, clientId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function releaseProjectFunds(project) {
+  const db = await pool.connect();
+
+  try {
+    await db.query('BEGIN');
+
+    const existingPayout = await db.query(
+      `SELECT id
+       FROM payments
+       WHERE project_id = $1
+         AND user_id = $2
+         AND type = 'payment'
+         AND status = 'completed'
+       LIMIT 1`,
+      [project.id, project.writer_id]
+    );
+
+    if (existingPayout.rows.length > 0) {
+      await db.query('ROLLBACK');
+      return { released: false, reason: 'already_released' };
+    }
+
+    const escrowPayment = await db.query(
+      `SELECT *
+       FROM payments
+       WHERE project_id = $1
+         AND user_id = $2
+         AND status = 'completed'
+         AND type IN ('payment', 'deposit')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [project.id, project.client_id]
+    );
+
+    if (escrowPayment.rows.length === 0) {
+      await db.query('ROLLBACK');
+      return { released: false, reason: 'missing_payment' };
+    }
+
+    const escrowAmount = Number(escrowPayment.rows[0].amount || project.budget);
+    const writerAmount = escrowAmount * (1 - platformFeePercentage);
+
+    await db.query(
+      `UPDATE users
+       SET total_earned = total_earned + $1,
+           total_projects_completed = total_projects_completed + 1
+       WHERE id = $2`,
+      [writerAmount, project.writer_id]
+    );
+
+    await db.query(
+      `INSERT INTO payments (user_id, project_id, amount, type, status, stripe_transaction_id, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        project.writer_id,
+        project.id,
+        writerAmount,
+        'payment',
+        'completed',
+        escrowPayment.rows[0].stripe_transaction_id,
+        'Automated project payout release'
+      ]
+    );
+
+    await db.query('COMMIT');
+    return { released: true, writerAmount };
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
+async function processOverdueProject(project) {
+  const existingDispute = await pool.query(
+    `SELECT id
+     FROM disputes
+     WHERE project_id = $1
+       AND status IN ('open', 'resolved')
+     LIMIT 1`,
+    [project.id]
+  );
+
+  if (existingDispute.rows.length > 0) {
+    return { processed: false, reason: 'already_flagged' };
+  }
+
+  const existingRefund = await pool.query(
+    `SELECT id
+     FROM payments
+     WHERE project_id = $1
+       AND user_id = $2
+       AND type = 'refund'
+       AND status = 'completed'
+     LIMIT 1`,
+    [project.id, project.client_id]
+  );
+
+  if (existingRefund.rows.length > 0) {
+    return { processed: false, reason: 'already_refunded' };
+  }
+
+  const escrowPayment = await findEscrowPayment(project.id, project.client_id);
+  let refundId = null;
+
+  if (escrowPayment?.stripe_transaction_id) {
+    const refund = await stripe.refunds.create({
+      payment_intent: escrowPayment.stripe_transaction_id,
+      amount: Math.round(Number(escrowPayment.amount || project.budget) * 100),
+      reason: 'requested_by_customer',
+      metadata: {
+        projectId: String(project.id),
+        reason: 'Project not completed by deadline'
+      }
+    });
+
+    refundId = refund.id;
+  }
+
+  const db = await pool.connect();
+
+  try {
+    await db.query('BEGIN');
+
+    await db.query(
+      `INSERT INTO disputes (project_id, raised_by, against_user, reason, status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        project.id,
+        project.client_id,
+        project.writer_id,
+        'Project not completed by deadline',
+        'open'
+      ]
+    );
+
+    await db.query(
+      'UPDATE projects SET status = $1, updated_at = NOW() WHERE id = $2',
+      ['cancelled', project.id]
+    );
+
+    if (refundId) {
+      await db.query(
+        `INSERT INTO payments (user_id, project_id, amount, type, status, stripe_transaction_id, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          project.client_id,
+          project.id,
+          Number(escrowPayment.amount || project.budget),
+          'refund',
+          'completed',
+          refundId,
+          'Automated refund for overdue project'
+        ]
+      );
+
+      await db.query(
+        `UPDATE users
+         SET total_spent = GREATEST(total_spent - $1, 0)
+         WHERE id = $2`,
+        [Number(escrowPayment.amount || project.budget), project.client_id]
+      );
+    }
+
+    await db.query('COMMIT');
+    return { processed: true, refunded: Boolean(refundId), refundId };
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
 // AI-based auto-matching: Match writers to projects automatically
-router.post('/auto-match', verifyToken, async (req, res) => {
+router.post('/auto-match', roleCheck('client'), [
+  body('projectId').isInt()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   try {
     const { projectId } = req.body;
 
-    // Get project details
     const projectRes = await pool.query(
-      'SELECT * FROM projects WHERE id = $1',
-      [projectId]
+      `SELECT *
+       FROM projects
+       WHERE id = $1
+         AND client_id = $2
+         AND status = 'open'`,
+      [projectId, req.user.id]
     );
-    const project = projectRes.rows[0];
 
+    const project = projectRes.rows[0];
     if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+      return res.status(404).json({ error: 'Open project not found or not yours' });
     }
 
-    // Find top 5 writers matching project category with high ratings
-    const writersRes = await pool.query(`
-      SELECT u.*, 
-        (SELECT COUNT(*) FROM bids WHERE writer_id = u.id AND status = 'accepted') as completed_projects,
-        AVG(CASE WHEN b.status = 'accepted' THEN u.rating ELSE NULL END) as avg_rating
-      FROM users u
-      LEFT JOIN bids b ON u.id = b.writer_id
-      WHERE u.role = 'writer' 
-      AND u.rating >= 4.0
-      AND u.total_earned > 0
-      ORDER BY u.rating DESC, completed_projects DESC
-      LIMIT 5
-    `);
+    const writersRes = await pool.query(
+      `SELECT
+         u.id,
+         u.first_name,
+         u.last_name,
+         COALESCE(u.rating, 0) AS rating,
+         COALESCE(u.total_projects_completed, 0) AS total_projects_completed,
+         CASE
+           WHEN COALESCE(u.skills::text, '[]') ILIKE $2 THEN 1
+           ELSE 0
+         END AS category_match
+       FROM users u
+       LEFT JOIN bids existing_bid
+         ON existing_bid.project_id = $1
+        AND existing_bid.writer_id = u.id
+       WHERE u.role = 'writer'
+         AND u.is_banned = false
+         AND existing_bid.id IS NULL
+       ORDER BY category_match DESC, COALESCE(u.rating, 0) DESC, COALESCE(u.total_projects_completed, 0) DESC
+       LIMIT 5`,
+      [projectId, `%${project.category || ''}%`]
+    );
 
-    const topWriters = writersRes.rows;
+    const deadlineDays = project.deadline
+      ? Math.max(
+          1,
+          Math.ceil((new Date(project.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        )
+      : 7;
 
-    // Auto-send proposals to top writers
-    for (const writer of topWriters) {
-      await pool.query(
-        'INSERT INTO bids (project_id, writer_id, amount, proposal, timeline, status) VALUES ($1, $2, $3, $4, $5, $6)',
+    const inserted = [];
+
+    for (const writer of writersRes.rows) {
+      const result = await pool.query(
+        `INSERT INTO bids (project_id, writer_id, amount, proposal, delivery_days, status)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (project_id, writer_id) DO NOTHING
+         RETURNING id, writer_id, amount, delivery_days`,
         [
           projectId,
           writer.id,
-          project.budget * 0.85, // Competitive price: 85% of budget
-          `Auto-matched project based on your expertise and ratings. Budget: $${project.budget}. Your price: $${(project.budget * 0.85).toFixed(2)}`,
-          '5-7 days',
+          Number(project.budget) * 0.85,
+          `Auto-matched project based on category "${project.category || 'general'}" and current writer performance.`,
+          deadlineDays,
           'pending'
         ]
       );
+
+      if (result.rows[0]) {
+        inserted.push({
+          ...result.rows[0],
+          name: `${writer.first_name} ${writer.last_name}`,
+          rating: writer.rating
+        });
+
+        await createNotification(
+          writer.id,
+          'auto_match',
+          'New matched project',
+          `You were automatically matched to "${project.title}".`,
+          { projectId }
+        );
+      }
     }
 
     res.json({
       message: '✅ Auto-matching complete',
-      matchedWriters: topWriters.length,
-      writers: topWriters.map(w => ({ id: w.id, name: `${w.first_name} ${w.last_name}`, rating: w.rating }))
+      matchedWriters: inserted.length,
+      writers: inserted
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -70,54 +316,78 @@ router.post('/auto-match', verifyToken, async (req, res) => {
 });
 
 // Auto-accept best bid based on rating and price
-router.post('/auto-accept-bid', verifyToken, roleCheck('client'), async (req, res) => {
+router.post('/auto-accept-bid', roleCheck('client'), [
+  body('projectId').isInt()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   try {
     const { projectId } = req.body;
 
-    // Get all bids for project, ordered by rating and price
-    const bidsRes = await pool.query(`
-      SELECT b.*, u.rating, u.first_name, u.last_name
-      FROM bids b
-      JOIN users u ON b.writer_id = u.id
-      WHERE b.project_id = $1
-      ORDER BY u.rating DESC, b.amount ASC
-      LIMIT 1
-    `, [projectId]);
+    const projectRes = await pool.query(
+      `SELECT *
+       FROM projects
+       WHERE id = $1
+         AND client_id = $2
+         AND status = 'open'`,
+      [projectId, req.user.id]
+    );
 
-    const bestBid = bidsRes.rows[0];
-
-    if (!bestBid) {
-      return res.status(404).json({ error: 'No bids available' });
+    const project = projectRes.rows[0];
+    if (!project) {
+      return res.status(404).json({ error: 'Open project not found or not yours' });
     }
 
-    // Accept the best bid
-    await pool.query(
-      'UPDATE bids SET status = $1 WHERE id = $2',
-      ['accepted', bestBid.id]
+    const bidsRes = await pool.query(
+      `SELECT b.*, u.rating, u.first_name, u.last_name
+       FROM bids b
+       JOIN users u ON b.writer_id = u.id
+       WHERE b.project_id = $1
+         AND b.status = 'pending'
+       ORDER BY COALESCE(u.rating, 0) DESC, b.amount ASC, b.created_at ASC
+       LIMIT 1`,
+      [projectId]
     );
 
-    // Reject other bids
+    const bestBid = bidsRes.rows[0];
+    if (!bestBid) {
+      return res.status(404).json({ error: 'No pending bids available' });
+    }
+
+    await pool.query('UPDATE bids SET status = $1 WHERE project_id = $2 AND id != $3', ['rejected', projectId, bestBid.id]);
+    await pool.query('UPDATE bids SET status = $1, updated_at = NOW() WHERE id = $2', ['accepted', bestBid.id]);
     await pool.query(
-      'UPDATE bids SET status = $1 WHERE project_id = $2 AND id != $3',
-      ['rejected', projectId, bestBid.id]
+      'UPDATE projects SET status = $1, assigned_writer_id = $2, updated_at = NOW() WHERE id = $3',
+      ['in_progress', bestBid.writer_id, projectId]
     );
 
-    // Create payment intent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(bestBid.amount * 100),
+      amount: Math.round(Number(bestBid.amount) * 100),
       currency: 'usd',
       metadata: {
-        projectId: projectId,
-        writerId: bestBid.writer_id
+        projectId: String(projectId),
+        writerId: String(bestBid.writer_id),
+        clientId: String(req.user.id)
       }
     });
 
+    await createNotification(
+      bestBid.writer_id,
+      'bid_accepted',
+      'Bid auto-accepted',
+      `Your bid for "${project.title}" was automatically accepted.`,
+      { projectId, bidId: bestBid.id }
+    );
+
     res.json({
       message: '✅ Best bid auto-accepted',
+      bidId: bestBid.id,
       writer: `${bestBid.first_name} ${bestBid.last_name}`,
       rating: bestBid.rating,
       amount: bestBid.amount,
-      paymentIntentId: paymentIntent.id
+      paymentIntentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -125,43 +395,43 @@ router.post('/auto-accept-bid', verifyToken, roleCheck('client'), async (req, re
 });
 
 // Auto-approve completed projects and release payment
-router.post('/auto-approve-projects', verifyToken, async (req, res) => {
+router.post('/auto-approve-projects', roleCheck('client'), async (req, res) => {
   try {
-    // Find projects with submitted work (status = 'completed')
-    const projectsRes = await pool.query(`
-      SELECT p.*, b.writer_id
-      FROM projects p
-      JOIN bids b ON p.id = b.project_id
-      WHERE p.status = 'completed' AND b.status = 'accepted'
-      AND p.updated_at <= NOW() - INTERVAL '7 days'
-    `);
+    const projectsRes = await pool.query(
+      `SELECT p.id, p.client_id, p.assigned_writer_id AS writer_id, p.title, p.budget
+       FROM projects p
+       WHERE p.client_id = $1
+         AND p.status = 'completed'
+         AND p.updated_at <= NOW() - INTERVAL '7 days'`,
+      [req.user.id]
+    );
 
-    const projects = projectsRes.rows;
     let approvalsCount = 0;
+    const releasedProjects = [];
 
-    for (const project of projects) {
-      // Auto-approve if no disputes after 7 days
-      await pool.query(
-        'UPDATE projects SET status = $1 WHERE id = $2',
-        ['approved', project.id]
-      );
+    for (const project of projectsRes.rows) {
+      if (!project.writer_id) continue;
 
-      // Release payment to writer
-      const platformFee = project.budget * 0.10;
-      const writerAmount = project.budget - platformFee;
-
-      await pool.query(
-        'UPDATE users SET total_earned = total_earned + $1 WHERE id = $2',
-        [writerAmount, project.writer_id]
-      );
+      const result = await releaseProjectFunds(project);
+      if (!result.released) continue;
 
       approvalsCount++;
+      releasedProjects.push({ projectId: project.id, writerAmount: result.writerAmount });
+
+      await createNotification(
+        project.writer_id,
+        'payment_released',
+        'Project payout released',
+        `Funds for "${project.title}" were released automatically.`,
+        { projectId: project.id }
+      );
     }
 
     res.json({
       message: '✅ Auto-approval complete',
       projectsApproved: approvalsCount,
-      paymentReleased: true
+      paymentReleased: approvalsCount > 0,
+      releasedProjects
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -173,41 +443,39 @@ router.get('/pricing-recommendations', async (req, res) => {
   try {
     const category = req.query.category || 'general';
 
-    // Get average project prices by category
-    const pricesRes = await pool.query(`
-      SELECT 
-        category,
-        AVG(budget) as avg_price,
-        COUNT(*) as project_count,
-        (SELECT COUNT(*) FROM users WHERE role = 'writer') as total_writers
-      FROM projects
-      WHERE category = $1 AND created_at > NOW() - INTERVAL '30 days'
-      GROUP BY category
-    `, [category]);
+    const pricesRes = await pool.query(
+      `SELECT
+         category,
+         AVG(budget) AS avg_price,
+         COUNT(*) AS project_count,
+         (SELECT COUNT(*) FROM users WHERE role = 'writer' AND is_banned = false) AS total_writers
+       FROM projects
+       WHERE category = $1
+         AND created_at > NOW() - INTERVAL '30 days'
+       GROUP BY category`,
+      [category]
+    );
 
     const marketData = pricesRes.rows[0] || {};
-
-    // Calculate competitive prices
-    const recommendedPrice = marketData.avg_price || 100;
-    const demand = marketData.project_count || 0;
-    const supply = marketData.total_writers || 1;
+    const recommendedPrice = Number(marketData.avg_price || 100);
+    const demand = Number(marketData.project_count || 0);
+    const supply = Number(marketData.total_writers || 1);
     const demandRatio = demand / supply;
 
-    // Dynamic pricing: Adjust based on supply/demand
     let priceMultiplier = 1;
-    if (demandRatio > 2) priceMultiplier = 1.2; // High demand, increase price
-    else if (demandRatio < 0.5) priceMultiplier = 0.8; // Low demand, decrease price
+    if (demandRatio > 2) priceMultiplier = 1.2;
+    else if (demandRatio < 0.5) priceMultiplier = 0.8;
 
     const competitivePrice = Math.round(recommendedPrice * priceMultiplier);
 
     res.json({
-      category: category,
+      category,
       recommendedMinPrice: Math.round(competitivePrice * 0.7),
       recommendedPrice: competitivePrice,
       recommendedMaxPrice: Math.round(competitivePrice * 1.3),
       marketDemand: demandRatio > 1.5 ? 'HIGH' : demandRatio < 0.5 ? 'LOW' : 'MEDIUM',
       priceMultiplier: priceMultiplier.toFixed(2),
-      note: 'Prices adjusted based on real-time market data'
+      note: 'Prices adjusted based on recent project demand'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -215,85 +483,79 @@ router.get('/pricing-recommendations', async (req, res) => {
 });
 
 // Auto-generate project descriptions using template
-router.post('/generate-project-template', verifyToken, roleCheck('client'), async (req, res) => {
+router.post('/generate-project-template', roleCheck('client'), async (req, res) => {
   try {
     const { title, category, budget, keywords } = req.body;
 
-    // AI-powered templates based on category
     const templates = {
-      blog: `I need a high-quality blog post (${keywords?.wordCount || 1000} words) about ${keywords?.topic || 'your niche'}. 
-      
-      Requirements:
-      - SEO optimized with target keywords
-      - Engaging, conversational tone
-      - Proper formatting with subheadings
-      - Original research and insights
-      - Professional editing
-      
-      Deliverables:
-      - Final article in Word/Google Docs
-      - Revision rounds included
-      - Publication-ready format
-      
-      Timeline: ${keywords?.deadline || '5-7 days'}
-      Budget: $${budget}`,
-      
-      copywriting: `Looking for persuasive copy for ${keywords?.type || 'sales page'} that converts.
-      
-      Requirements:
-      - Compelling headline
-      - Benefit-focused messaging
-      - Clear call-to-action
-      - A/B testing versions
-      - Mobile-optimized
-      
-      Deliverables:
-      - 2-3 copy variations
-      - Supporting messaging guide
-      - Performance recommendations
-      
-      Timeline: ${keywords?.deadline || '3-5 days'}
-      Budget: $${budget}`,
-      
-      technical: `Technical writing project: ${keywords?.topic || 'Documentation/Guide'}
-      
-      Requirements:
-      - Clear, concise technical explanations
-      - Step-by-step instructions
-      - Screenshots/diagrams guidance
-      - Audience: ${keywords?.audience || 'Technical professionals'}
-      
-      Deliverables:
-      - Complete documentation
-      - Formatted for publication
-      - Reviewed and tested
-      
-      Timeline: ${keywords?.deadline || '7-10 days'}
-      Budget: $${budget}`,
-      
-      content: `Content marketing project: ${keywords?.topic || 'Content series/campaign'}
-      
-      Requirements:
-      - Original, high-quality content
-      - Consistent brand voice
-      - SEO-friendly structure
-      - ${keywords?.pieces || '5'} pieces total
-      
-      Deliverables:
-      - All content pieces
-      - Publishing calendar
-      - Promotion tips
-      
-      Timeline: ${keywords?.deadline || '10-14 days'}
-      Budget: $${budget}`
+      blog: `Project: ${title || 'Blog article'}
+
+Requirements:
+- SEO optimized with target keywords for ${keywords?.topic || 'your niche'}
+- Engaging structure with clear subheadings
+- Original research and actionable insights
+- Approximate length: ${keywords?.wordCount || 1000} words
+
+Deliverables:
+- Final article in editable format
+- Fact-checked draft
+- Revision support if needed
+
+Timeline: ${keywords?.deadline || '5-7 days'}
+Budget: $${budget}`,
+      copywriting: `Project: ${title || 'Conversion copy'}
+
+Requirements:
+- Persuasive copy for ${keywords?.type || 'landing page or campaign'}
+- Strong headline and clear call-to-action
+- Audience-aware messaging
+- Multiple copy variations for testing
+
+Deliverables:
+- Final copy deck
+- Suggested CTA variants
+- Revision-ready editable copy
+
+Timeline: ${keywords?.deadline || '3-5 days'}
+Budget: $${budget}`,
+      technical: `Project: ${title || 'Technical writing assignment'}
+
+Requirements:
+- Clear, concise explanation of ${keywords?.topic || 'the requested topic'}
+- Audience: ${keywords?.audience || 'technical professionals'}
+- Structured sections and implementation detail
+- Accuracy review before submission
+
+Deliverables:
+- Publication-ready documentation
+- Organized section outline
+- Suggested diagrams or screenshots if useful
+
+Timeline: ${keywords?.deadline || '7-10 days'}
+Budget: $${budget}`,
+      content: `Project: ${title || 'Content marketing project'}
+
+Requirements:
+- Original content around ${keywords?.topic || 'the requested topic'}
+- Consistent brand voice
+- SEO-friendly formatting
+- ${keywords?.pieces || 'Multiple'} content deliverables
+
+Deliverables:
+- Final content package
+- Suggested publishing order
+- Revision-ready drafts
+
+Timeline: ${keywords?.deadline || '10-14 days'}
+Budget: $${budget}`
     };
 
     const description = templates[category] || templates.content;
 
     res.json({
       message: '✅ Project template generated',
-      description: description,
-      tip: 'You can customize this template further before posting'
+      description,
+      tip: 'Customize the generated copy before publishing'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -305,36 +567,37 @@ router.get('/writer-pricing-guide/:category', async (req, res) => {
   try {
     const { category } = req.params;
 
-    // Get market rates for writers in this category
-    const ratesRes = await pool.query(`
-      SELECT 
-        AVG(b.amount) as avg_bid,
-        MIN(b.amount) as min_bid,
-        MAX(b.amount) as max_bid,
-        COUNT(*) as total_bids,
-        AVG(u.rating) as avg_writer_rating
-      FROM bids b
-      JOIN projects p ON b.project_id = p.id
-      JOIN users u ON b.writer_id = u.id
-      WHERE p.category = $1 AND b.status = 'accepted'
-      AND b.created_at > NOW() - INTERVAL '60 days'
-    `, [category]);
+    const ratesRes = await pool.query(
+      `SELECT
+         AVG(b.amount) AS avg_bid,
+         MIN(b.amount) AS min_bid,
+         MAX(b.amount) AS max_bid,
+         COUNT(*) AS total_bids,
+         AVG(u.rating) AS avg_writer_rating
+       FROM bids b
+       JOIN projects p ON b.project_id = p.id
+       JOIN users u ON b.writer_id = u.id
+       WHERE p.category = $1
+         AND b.status = 'accepted'
+         AND b.created_at > NOW() - INTERVAL '60 days'`,
+      [category]
+    );
 
     const marketRates = ratesRes.rows[0];
 
     res.json({
-      category: category,
+      category,
       competitiveRates: {
-        economy: Math.round((marketRates?.min_bid || 30) * 0.9),
-        standard: Math.round(marketRates?.avg_bid || 75),
-        premium: Math.round((marketRates?.max_bid || 150) * 1.1)
+        economy: Math.round(Number(marketRates?.min_bid || 30) * 0.9),
+        standard: Math.round(Number(marketRates?.avg_bid || 75)),
+        premium: Math.round(Number(marketRates?.max_bid || 150) * 1.1)
       },
       marketData: {
-        averageBid: Math.round(marketRates?.avg_bid || 0),
-        totalAcceptedBids: marketRates?.total_bids || 0,
-        averageWriterRating: (marketRates?.avg_writer_rating || 0).toFixed(1)
+        averageBid: Math.round(Number(marketRates?.avg_bid || 0)),
+        totalAcceptedBids: Number(marketRates?.total_bids || 0),
+        averageWriterRating: Number(marketRates?.avg_writer_rating || 0).toFixed(1)
       },
-      recommendation: `Based on current market rates, consider pricing between $${Math.round((marketRates?.min_bid || 30) * 0.9)} - $${Math.round((marketRates?.max_bid || 150) * 1.1)} for ${category} projects`
+      recommendation: `Suggested pricing for ${category} projects is based on accepted bids from the last 60 days.`
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -342,50 +605,49 @@ router.get('/writer-pricing-guide/:category', async (req, res) => {
 });
 
 // Automated dispute resolution - Auto-refund if no delivery within deadline
-router.post('/auto-dispute-check', verifyToken, async (req, res) => {
-  try {
-    // Find projects past deadline with no completion
-    const overdueRes = await pool.query(`
-      SELECT p.*, b.writer_id, u.stripe_account_id
-      FROM projects p
-      JOIN bids b ON p.id = b.project_id
-      WHERE b.status = 'accepted'
-      AND p.deadline < NOW()
-      AND p.status != 'completed'
-    `);
+router.post('/auto-dispute-check', roleCheck('client'), [
+  body('projectId').optional().isInt()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const overdueProjects = overdueRes.rows;
+  try {
+    const { projectId } = req.body;
+    const overdueRes = await pool.query(
+      `SELECT p.id, p.client_id, p.assigned_writer_id AS writer_id, p.title, p.budget
+       FROM projects p
+       WHERE p.client_id = $1
+         AND p.assigned_writer_id IS NOT NULL
+         AND p.deadline < NOW()
+         AND p.status = 'in_progress'
+         AND ($2::int IS NULL OR p.id = $2)`,
+      [req.user.id, projectId || null]
+    );
+
+    let processedCount = 0;
     let refundsProcessed = 0;
 
-    for (const project of overdueProjects) {
-      // Auto-refund client
-      const refund = await stripe.refunds.create({
-        amount: Math.round(project.budget * 100),
-        metadata: {
-          projectId: project.id,
-          reason: 'Project not completed by deadline'
-        }
-      });
+    for (const project of overdueRes.rows) {
+      const result = await processOverdueProject(project);
+      if (!result.processed) continue;
 
-      // Mark project as disputed
-      await pool.query(
-        'UPDATE projects SET status = $1 WHERE id = $2',
-        ['disputed', project.id]
+      processedCount++;
+      if (result.refunded) refundsProcessed++;
+
+      await createNotification(
+        project.writer_id,
+        'project_dispute',
+        'Project flagged as overdue',
+        `The project "${project.title}" was automatically flagged because it missed its deadline.`,
+        { projectId: project.id }
       );
-
-      // Remove disputed amount from writer's balance
-      await pool.query(
-        'UPDATE users SET total_earned = total_earned - $1 WHERE id = $2',
-        [project.budget * 0.85, project.writer_id]
-      );
-
-      refundsProcessed++;
     }
 
     res.json({
       message: '✅ Auto-dispute check complete',
-      refundsProcessed: refundsProcessed,
-      timestamp: new Date()
+      projectsFlagged: processedCount,
+      refundsProcessed,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

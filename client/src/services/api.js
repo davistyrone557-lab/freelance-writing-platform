@@ -84,6 +84,16 @@ export const paymentsAPI = {
   connectAccount: (data) => api.post('/payments/connect-account', data)
 }
 
+export const automationAPI = {
+  autoMatch: (projectId) => api.post('/automation/auto-match', { projectId }),
+  autoAcceptBid: (projectId) => api.post('/automation/auto-accept-bid', { projectId }),
+  autoApproveProjects: () => api.post('/automation/auto-approve-projects'),
+  getPricingRecommendations: (category) => api.get('/automation/pricing-recommendations', { params: { category } }),
+  generateProjectTemplate: (data) => api.post('/automation/generate-project-template', data),
+  getWriterPricingGuide: (category) => api.get(`/automation/writer-pricing-guide/${category}`),
+  autoDisputeCheck: (projectId) => api.post('/automation/auto-dispute-check', projectId ? { projectId } : {})
+}
+
 export const messagesAPI = {
   getConversations: () => api.get('/messages/conversations'),
   createConversation: (recipientId) => api.post('/messages/conversations', { recipientId }),
