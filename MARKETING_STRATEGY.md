@@ -221,17 +221,26 @@
 
 ## 6️⃣ **REFERRAL & VIRAL MARKETING**
 
-### Referral Program
-**Offer**: 
-- Refer a writer → Both get $50 credit
-- Refer a client → Both get 10% discount
+### Referral Program (Now Live in the App ✅)
+**How it actually works** (Settings page → "Refer & Earn"):
+- Every user gets a personal referral link (`/register?ref=THEIRCODE`) generated automatically — no manual setup.
+- When the person they referred lands their **first real hire** on the platform (their first accepted bid as a writer, or the first accepted bid on their project as a client), the **referrer** earns a genuine **$25 credit**, added directly to their withdrawable balance.
+- No cap on how many people someone can refer. No credit for the signup alone — this keeps the program honest and resistant to fake-account abuse, and means every dollar paid out corresponds to a real, completed hire.
+- This replaces earlier placeholder copy about "$50 both sides" / "10% discount" — always describe the program using the terms above so marketing matches the product exactly.
 
-**Tools**: 
-- Native referral feature in app
-- Viral loops plugin
-- Ambassador program
+**Tools**:
+- Native referral feature in app (Settings page, shareable link with one-click copy)
+- Ambassador program (see Affiliate Program below)
 
 **Expected**: 20-30% of new signups from referrals
+
+### Achievement Badges as a Growth Loop (Now Live in the App ✅)
+Writers automatically earn badges (Verified, Rising Star, Experienced Writer, Super Writer, Top Rated) purely from real, existing stats — no manual awarding, nothing for sale. Badges show up on public writer profiles, which:
+- Gives writers a genuine reason to share their profile link (organic word-of-mouth, not paid).
+- Gives clients a fast, trustworthy signal of quality when browsing bids.
+- Reinforces the referral program: a writer's profile is a natural place to also drop their referral link.
+
+Use this in messaging: "Every badge is earned, never bought" is a differentiator worth repeating in ads/social copy — it's honest and it signals platform integrity.
 
 ### Affiliate Program
 **Commission**: 20% lifetime referral fee
@@ -421,16 +430,98 @@ Questions? Reply to this email.
 6. [ ] Create email newsletter setup
 7. [ ] Reach out to 10 micro-influencers
 8. [ ] Join key Reddit communities
-9. [ ] Create referral program
+9. [x] Create referral program — live in-app via Settings → "Refer & Earn" (see Section 6️⃣ for exact mechanic)
 10. [ ] Track all metrics in spreadsheet
 
 ---
 
-**Would you like me to:**
-- [ ] Create sample social media posts?
-- [ ] Write your first blog posts?
-- [ ] Design email templates?
+## 8️⃣ **READY-TO-USE MARKETING CONTENT**
+
+All copy below is accurate to what's actually shipped in the app today (escrow payments, ratings/reviews, the referral program, and achievement badges). No fabricated stats, testimonials, or scarcity claims — only feature-accurate claims and the platform's own placeholder growth numbers already shown on the homepage.
+
+### Social Media Posts
+
+**Twitter/X**
+```
+Freelance writers: stop chasing invoices. On Content-Forge.pro, payments sit in
+secure escrow and release the moment you deliver approved work.
+
+Browse open writing projects → [link]
+
+#FreelanceWriting #WritingCommunity
+```
+
+**LinkedIn**
+```
+Need content but don't have time to vet writers one by one?
+
+Content-Forge.pro lets you post a project, compare proposals from writers with
+transparent ratings and reviews, and pay securely — only when you approve the
+final draft.
+
+Post your first project free: [link]
+```
+
+**Instagram/TikTok caption**
+```
+POV: you post one writing project and proposals start rolling in. 📝💻
+Set your budget, pick your writer, get your content.
+Link in bio.
+
+#FreelanceLife #ContentCreation #WorkFromHome
+```
+
+**Reddit** (post in relevant subreddits, e.g. r/freelanceWriters, r/WorkOnline — always follow each subreddit's self-promotion rules, and always disclose you're affiliated with the platform; never post as if you're an unaffiliated user)
+```
+Full disclosure: I'm part of the team at Content-Forge.pro, a marketplace
+connecting freelance writers with clients who need content. Payments are held
+in escrow until you deliver, and every writer builds a public rating/review
+history over time. Happy to answer questions about how it works if anyone's
+curious.
+```
+
+### Blog Post Intros
+
+**"How to Find Freelance Writing Jobs in 2025"**
+```
+If you've spent hours applying to "gigs" that turn out to be unpaid "exposure"
+work, you already know the freelance writing market is full of noise. The
+fastest way to filter it out is to evaluate platforms the same way you'd
+evaluate a client: how is payment protected, how are writers rated, and how
+transparent is the bidding process before you commit any time. Here's what to
+look for — and where to find real, paying projects.
+```
+
+**"How Clients Should Hire Quality Writers"**
+```
+Hiring a freelance writer sight-unseen is a gamble unless you know what to
+check first. Before you accept a proposal, look at three things: the writer's
+completed project history, their rating and written reviews, and how clearly
+they've scoped the work back to you. Get these right and a first-time hire can
+perform like a long-term one.
+```
+
+### Ad Copy Variations
+
+**Writer-targeted**
+- Headline: "Get Paid for Every Word — On Time, Every Time"
+- Description: "Join Content-Forge.pro, bid on real writing projects, and get paid through secure escrow the moment your work is approved."
+
+**Client-targeted**
+- Headline: "Hire a Vetted Writer in Days, Not Weeks"
+- Description: "Post your project free, compare rated proposals, and only pay when you approve the final draft."
+
+**Referral-program-targeted**
+- Headline: "Know a Great Writer or a Client Who Needs One?"
+- Description: "Share your Content-Forge.pro referral link. When they land their first hire, you earn a real $25 credit."
+
+---
+
+**Delivered from the original "Would you like me to" list:**
+- [x] Create sample social media posts — see Section 8️⃣ above
+- [x] Write your first blog posts — intros drafted in Section 8️⃣ above (expand each into a full post before publishing)
+- [ ] Design email templates? (existing templates already in Section 📧 EMAIL TEMPLATES above)
 - [ ] Create video scripts?
 - [ ] Set up Google Analytics?
 
-Let's make FreelanceWriting.pro a household name! 🎯
+Let's make Content-Forge.pro a household name! 🎯
